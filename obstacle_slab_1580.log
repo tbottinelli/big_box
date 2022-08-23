@@ -1,0 +1,13 @@
+[17-08-2022 10:05:41.961285] HALMD (HAL’s MD package) 1.0-alpha6-patch193 [AdResS-branch commit 36e879ed8]
+[17-08-2022 10:05:42.162387] variant: +GPU +GPU_SINGLE_PRECISION +GPU_DOUBLE_SINGLE_PRECISION +FORCE_DSFUN
+[17-08-2022 10:05:42.162440] built with GNU 8.3.0 and NVCC 9.2 for Lua 5.1.4
+[17-08-2022 10:05:42.162470] command line: halmd obstacle_slab.lua -v
+[17-08-2022 10:05:42.162498] host name: bountiful.imp.fu-berlin.de
+[17-08-2022 10:05:42.165739] profiler timer resolution: 1 ns
+[17-08-2022 10:05:42.184009] edge lengths of simulation domain: 200 30 30
+[17-08-2022 10:05:42.193669] number of particles: 147456
+[17-08-2022 10:05:42.193718] number of particle species: 1
+[17-08-2022 10:05:42.201785] lattice: restrict initial particle positions to slab: 0.4 1 1
+[17-08-2022 10:05:42.201916] lattice: placing particles on fcc lattice: a = 1.25
+[17-08-2022 10:05:42.285324] write to H5MD file: /group/ag_compstatphys/data/tbottinelli/test_obstacle/big_box/obstacle_slab.h5
+[17-08-2022 10:05:42.418209] HALMD exit
