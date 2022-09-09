@@ -39,7 +39,7 @@ def main():
     parser.add_argument('--no-plot', action='store_true', help='do not produce plots, but do the analysis')
     parser.add_argument('--group', help='particle group (default: %(default)s)', default='all')
     parser.add_argument('input1', metavar='INPUT', help='H5MD input file for virial')
-    #parser.add_argument('input2', metavar='INPUT', help='tst.dat file for pressure')
+    parser.add_argument('input2', metavar='INPUT', help='tst.dat file for pressure')
     #parser.add_argument('input3', metavar='INPUT', help='H5MD input file with data for state variables')
     #parser.add_argument('input4', metavar='INPUT', help='H5MD input file with data for state variables')
     #parser.add_argument('input5', metavar='INPUT', help='H5MD input file with data for state variables')
@@ -47,26 +47,50 @@ def main():
 	
     args = parser.parse_args()
 
-    H5 = [ h5py.File(args.input1, 'r')] #,  h5py.File(args.input2, 'r'), h5py.File(args.input3, 'r'), h5py.File(args.input4, 'r'), h5py.File(args.input5, 'r')]
-    virial = []
+    H5 = [ h5py.File(args.input1, 'r'),  h5py.File(args.input2, 'r') ] #, h5py.File(args.input3, 'r'), h5py.File(args.input4, 'r'), h5py.File(args.input5, 'r')]
+    pressure = []
     for j in range(len(H5)):
         H5obs = H5[j]['observables']
-        virial.append( [ H5obs['region{0}/virial/value'.format(i)] for i in range(0,80) ] )
+        pressure.append( [ H5obs['region{0}/pressure/value'.format(i)] for i in range(0,80) ] )
 
     box = np.diagonal(H5[0]['particles/all/box/edges']) 
     print(box) 
-    #H5obs = H5['observables']
-    #Temperature = [ H5obs['region{0}/temperature/value'.format(i)][1:] for i in range(0,40) ]
-    virial =  np.array(virial) #1x80x500
-    print(virial.shape)
-    mean_virial = np.mean(virial, axis = (0,2))#2 if more than 1 input
-    print(virial)
+    slab = 0.4*box[0]
+    Vtot = box[0]*box[1]*box[2]
+    pore_area = [(15)**2, (25)**2]
+    area = box[1]*box[2]
     dx =  2.5
     sym = -box[0]/2
 
-    #pressure = np.loadtxt(args.input2)[:,1]
-    #print(pressure.shape)
+    Vslab1 = int((box[0]-slab)//(2*dx))*[area*dx]
+    Vslab1 += int(slab//dx)*[pore_area[0]*dx]
+    Vslab1 += int((box[0]-slab)//(2*dx))*[area*dx]
 
+    Vslab2 = int((box[0]-slab)//(2*dx))*[area*dx]
+    Vslab2 += int(slab//dx)*[pore_area[1]*dx]
+    Vslab2 += int((box[0]-slab)//(2*dx))*[area*dx]
+
+
+    pressure =  np.array(pressure) #1x80x500
+    #print(pressure.shape)
+    mean_press = np.mean(pressure, axis = 2)#2 if more than 1 input
+
+    p1 = (mean_press[0,:]*Vtot)/Vslab1
+    p2 = (mean_press[1,:]*Vtot)/Vslab2
+    #print(p1,p2)
+
+    #import results from pressure_planes
+    plane15 = np.loadtxt('tst15cst.dat')
+    plane25 = np.loadtxt('tst25cst.dat')
+
+    x15=plane15[:,0].tolist()
+    x25=plane25[:,0].tolist()
+    p15 = plane15[:,1].tolist()
+    p25 = plane25[:,1].tolist()
+
+    del x15[55], x25[55], p15[55], p25[55]
+
+    
 
     plt.rc('font', **{ 'family':'serif', 'serif' : ['ptm'], 'size' :12})
     plt.rc('text', usetex=True)
@@ -90,38 +114,37 @@ def main():
      
     #xgrid = np.loadtxt(args.input2)[:,0]
     xgrid = dx*np.arange(box[0]/dx)+1.25
-    print(xgrid.shape)
+    #print(xgrid)
         
-    rdf0 = interp1d(xgrid, mean_virial[:] ,bounds_error=False, kind = 'quadratic')
-    #rdf1 = interp1d(xgrid, mean_temp[1,:] ,bounds_error=False, kind = 'quadratic')
+    rdf0 = interp1d(xgrid, p1 ,bounds_error=False, kind = 'quadratic')
+    rdf1 = interp1d(xgrid, p2 ,bounds_error=False, kind = 'quadratic')
     #rdf2 = interp1d(xgrid, mean_temp[2,:] ,bounds_error=False, kind = 'quadratic')
     #rdf3 = interp1d(xgrid, mean_temp[3,:] ,bounds_error=False, kind = 'quadratic')
     #rdf4 = interp1d(xgrid, mean_temp[4,:] ,bounds_error=False, kind = 'quadratic')
 
     
-    grids_at = np.linspace(0, 70, num = 55, endpoint = False )
     grids_adr = np.linspace(0, box[0], num =1000 , endpoint=False)
 
-    plt.plot(grids_adr + sym, rdf0(grids_adr) , '-',color='deepskyblue',linewidth=1.2,fillstyle='full', label = 'L15')
-    #plt.plot(grids_adr + sym, rdf1(grids_adr) , '-',color='royalblue',linewidth=1.2,fillstyle='full', label = 'L20')
-    #plt.plot(grids_adr + sym, rdf2(grids_adr) , '-',color='mediumblue',linewidth=1.2,fillstyle='full', label = 'L25')
-    #plt.plot(grids_adr + sym, rdf3(grids_adr) , '-',color='midnightblue',linewidth=1.2,fillstyle='full', label = 'L30')
+    plt.plot(grids_adr + sym, rdf0(grids_adr) , '-',color='deepskyblue',linewidth=1.2,fillstyle='full', label = 'D15 virial')
+    plt.plot(grids_adr + sym, rdf1(grids_adr) , '-',color='cornflowerblue',linewidth=1.2,fillstyle='full', label = 'D25 virial')
+    plt.plot(x15, p15 , '-',color='red',linewidth=0.6 , linestyle='dashed', label = 'Planes method')
+    plt.plot(x15, p25 , '-',color='red',linewidth=0.6,linestyle='dashed')
     #plt.plot(grids_adr + sym, rdf4(grids_adr) , '-',color='black',linewidth=1.2,fillstyle='full', label = 'L35')
     plt.legend()
 
     plt.xlabel(r"$x / \sigma$")
-    plt.ylabel(r"$k_{B}T(x)/\varepsilon$") 
+    plt.ylabel(r"$p/\varepsilon/\sigma^3$") 
     #print(np.max(time0)-0.8, np.max(time1)-1,np.max(time2)-1.2)
     source = 10
     slab = 0.4*box[0]
     plt.xlim([0+sym,box[0]+sym])
     #plt.ylim([0,5])
-    #plt.legend(loc = 'upper left')
+    plt.legend(loc = 'upper right')
     plt.axvline(x=source+sym, color='k', linestyle='--',linewidth=0.4)
     plt.axvspan(-slab/2, slab/2, alpha=0.5, color='grey')
     plt.axvspan(0+sym, source+sym, alpha=0.5, color='gold')
 
-    plt.savefig('virial.pdf')
+    plt.savefig('comp1525_nocorrection.pdf')
    
 
 

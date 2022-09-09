@@ -39,29 +39,32 @@ def main():
     parser.add_argument('--no-plot', action='store_true', help='do not produce plots, but do the analysis')
     parser.add_argument('--group', help='particle group (default: %(default)s)', default='all')
     parser.add_argument('input1', metavar='INPUT', help='H5MD input file with data for state variables')
-    parser.add_argument('input2', metavar='INPUT', help='H5MD input file with data for state variables')
+    #parser.add_argument('input2', metavar='INPUT', help='H5MD input file with data for state variables')
     #parser.add_argument('input3', metavar='INPUT', help='H5MD input file with data for state variables')
     #parser.add_argument('input4', metavar='INPUT', help='H5MD input file with data for state variables')
     #parser.add_argument('input5', metavar='INPUT', help='H5MD input file with data for state variables')
 
 	
     args = parser.parse_args()
+    eta = 1.4
 
-    H5 =  [h5py.File(args.input1, 'r'),  h5py.File(args.input2, 'r') ] #, h5py.File(args.input3, 'r'), h5py.File(args.input4, 'r'), h5py.File(args.input5, 'r')]
-    box = np.diagonal(H5[0]['particles/all/box/edges'])
-    Temperature = []
-    for j in range(len(H5)):
-        H5obs = H5[j]['observables']
-        Temperature.append( [ H5obs['region{0}/temperature/value'.format(i)] for i in range(0,80) ] )
-   
-    #H5obs = H5['observables']
-    #Temperature = [ H5obs['region{0}/temperature/value'.format(i)][1:] for i in range(0,40) ]
-    Temperature = np.array(Temperature)
-    print(Temperature.shape)
-    mean_temp = np.mean(Temperature, axis = 2) #2 if more than 1 input
-    print(mean_temp.shape)
-    dx =  2.5
-	
+
+    H5 =  h5py.File(args.input1, 'r') #,  h5py.File(args.input2, 'r') ] #, h5py.File(args.input3, 'r'), h5py.File(args.input4, 'r'), h5py.File(args.input5, 'r')]
+    box = np.diagonal(H5['particles/all/box/edges'])
+    sym = - box/2
+    H5obs = H5['observables']
+    Temp = np.array([  H5obs['region{0}/temperature/value'.format(i)] for i in range(0,80) ] )
+    J = np.array([ H5obs['region{0}/heat_flux/value'.format(i)] for i in range(0,80) ])
+    kin = np.array([ H5obs['region{0}/kinetic_energy/value'.format(i)] for i in range(0,80) ])
+    Uint = np.array([ H5obs['region{0}/internal_energy/value'.format(i)] for i in range(0,80) ])
+    stress = np.array([H5obs['region{0}/stress_tensor/value'.format(i)] for i in range(0,80) ]) #need component 3 and 4 [:,:,3] []
+    velocity = np.array([H5obs['region{0}/center_of_mass_velocity/value'.format(i)] for i in range(0,80) ])
+    
+    
+
+    summation = Uint + J[:,:,0]*Temp + stress .....
+    print(summation.shape)
+    sum_mean = np.mean(summation, axis = 1)
 
     plt.rc('font', **{ 'family':'serif', 'serif' : ['ptm'], 'size' :12})
     plt.rc('text', usetex=True)
@@ -82,12 +85,12 @@ def main():
     plt.rc('lines', linewidth=1, markersize = 2,markeredgewidth=0)
     plt.rc('savefig', bbox='tight',pad_inches=0.05,dpi=600,transparent=False)
     plt.rc('ps',usedistiller='xpdf')
-     
-    xgrid = dx * np.arange(int(box[0]/dx))+ 1.25
-    print(xgrid)
+    
+    dx=2.5
+    xgrid = dx*np.arange(int(box[0]/dx))+1.25
         
-    rdf0 = interp1d(xgrid, mean_temp[0,:] ,bounds_error=False, kind = 'quadratic')
-    rdf1 = interp1d(xgrid, mean_temp[1,:] ,bounds_error=False, kind = 'quadratic')
+    rdf0 = interp1d(xgrid, sum_mean ,bounds_error=False, kind = 'quadratic')
+ #   rdf1 = interp1d(xgrid, mean_temp[1,:] ,bounds_error=False, kind = 'quadratic')
     #rdf2 = interp1d(xgrid, mean_temp[2,:] ,bounds_error=False, kind = 'quadratic')
     #rdf3 = interp1d(xgrid, mean_temp[3,:] ,bounds_error=False, kind = 'quadratic')
     #rdf4 = interp1d(xgrid, mean_temp[4,:] ,bounds_error=False, kind = 'quadratic')
@@ -97,7 +100,7 @@ def main():
     sym = -box/2
 
     plt.plot(grids_adr + sym[0], rdf0(grids_adr) , '-',color='deepskyblue',linewidth=1.2,fillstyle='full', label = 'D15')
-    plt.plot(grids_adr + sym[0], rdf1(grids_adr) , '-',color='royalblue',linewidth=1.2,fillstyle='full', label = 'D25')
+#    plt.plot(grids_adr + sym[0], rdf1(grids_adr) , '-',color='royalblue',linewidth=1.2,fillstyle='full', label = 'D25')
     #plt.plot(grids_adr + sym, rdf2(grids_adr) , '-',color='mediumblue',linewidth=1.2,fillstyle='full', label = 'L25')
     #plt.plot(grids_adr + sym, rdf3(grids_adr) , '-',color='midnightblue',linewidth=1.2,fillstyle='full', label = 'L30')
     #plt.plot(grids_adr + sym, rdf4(grids_adr) , '-',color='black',linewidth=1.2,fillstyle='full', label = 'L35')
@@ -117,7 +120,7 @@ def main():
     plt.axvspan(-slab/2,slab/2, alpha=0.5, color='grey')
     plt.axvspan(0+sym[0], source+sym[0], alpha=0.5, color='gold')
 
-    plt.savefig('temp1525.pdf')
+    plt.savefig('Esum.pdf')
    
 
 

@@ -41,7 +41,7 @@ function main(args)
     local eps = 0.001
     local source_velocity = {0.25,0,0}
     --15
-    local npore = 110592 
+    --local npore = 110592 
     --20
     --local npore = 102400
     --25
@@ -162,7 +162,7 @@ function main(args)
         file = file_write
             , fields = {
                   "potential_energy", "pressure", "temperature" , "total_force"
-                , "internal_energy", "kinetic_energy","virial", "center_of_mass_velocity" , "heat_flux"
+                , "internal_energy", "kinetic_energy","virial", "center_of_mass_velocity" , "heat_flux", "stress_tensor"
               }
             , every = interval
           })

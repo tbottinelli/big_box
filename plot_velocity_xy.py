@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 #
 # Copyright © 2011  Felix Höfling
@@ -30,87 +30,102 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.optimize import curve_fit
+
+def NS(dy,visc):
+    deltax= 80
+    dp_25 = 2.449 - 4.097
+    dp_15 = 11.0995 - 15.927
+    dpdx = [dp_15/deltax, dp_25/deltax]
+    R = [15/2, 25/2]
+
+    return (-(dpdx[0]*R[0]**2)/(4*visc))*(1-(dy/R[0])**2)
+
 
 def main():
     # define and parse command line arguments
-    parser = argparse.ArgumentParser(prog='plot_velocity.py')
+    parser = argparse.ArgumentParser(prog='plot_velocity_xy.py')
     parser.add_argument('--range', type=int, nargs=2, help='select range of data points')
     parser.add_argument('--dump', metavar='FILENAME', help='dump plot data to filename')
     parser.add_argument('--no-plot', action='store_true', help='do not produce plots, but do the analysis')
     parser.add_argument('--group', help='particle group (default: %(default)s)', default='all')
     parser.add_argument('input1', metavar='INPUT', help='H5MD input file with data for state variables')
-    parser.add_argument('input2', metavar='INPUT', help='H5MD input file with data for state variables')
+    #parser.add_argument('input2', metavar='INPUT', help='H5MD input file with data for state variables')
     #parser.add_argument('input3', metavar='INPUT', help='H5MD input file with data for state variables')
     #parser.add_argument('input4', metavar='INPUT', help='H5MD input file with data for state variables')
 
     args = parser.parse_args()
-    H5 = [ h5py.File(args.input1, 'r'), h5py.File(args.input2, 'r') ]
+    H5 = h5py.File('result_out_20220908_104237')
 
-    velocity = []
-    position = []
-    images = []
-    species = []
-    for i in range(len(H5)):
-        H5p = H5[i]['particles/all']
-        velocity.append([ H5p['velocity/value'] ]) 
-        velocity = np.array(velocity)
-        position.append(H5p['position/value']) 
-        position = np.array(position)
-        images.append(H5p['image/value'])
-        images = np.array(images)
-        species.append(H5p['species/value'])
-        species = np.array(species)
-        print('pos',position.shape)
-        print('vel',velocity.shape)
-        print('species',species.shape)
-    
-    box = np.diagonal(H5[0]['particles/all/box/edges'])
+    H5p = H5['particles/all']
+    velocity =  H5p['velocity/value']
+    position = H5p['position/value']
+    images = H5p['image/value']
+    species = H5p['species/value']
+    print('pos',position.shape)
+    print('vel',velocity.shape)
+    print('species',species.shape)
+    print('images', images.shape)
+
+    box = np.array(np.diagonal(H5['particles/all/box/edges']))
+    print(box)
     slab = 0.4*box[0]
+    print(slab/2)
     slab_start = -slab/2
-    print(slab_start)
     slab_end = slab/2
     pore_yz = 15
     print(pore_yz)
-    sym = box/(-2)
+    sym = -box/2
+
+
+    num_times = position.shape[0]
 
     #bring particles back in the box
     for i in range(3):
         position[:,:,i] -= box[i]*images[:,:,i] 
-    print('pos',position.shape[0])
+    print(np.amax(position), np.amin(position))
 
     fluid_id = np.where((species[0,:] == 0))
     print('fluid id',fluid_id[0].shape)
+    
+    #print(abs(position[0,fluid_id[0], 0]))
 
-    fluid_pos = []
+
+    fluid_posy = []
     speed = []
-    for t in range(position.shape[0]):
-        #selecting fluid particles in the length of the pore (then select in the y direction)
-        fluid_pos.append( np.where( abs(position[t, fluid_id[0], 0] ) < slab/2, position[t, fluid_id[0], 1] , np.nan ) )
+    for t in range(num_times):
+    #selecting fluid particles in the length of the pore (then select in the y direction)
+        fluid_posy.append( np.where( abs(position[t, fluid_id[0], 0] ) < slab/2, position[t, fluid_id[0], 1] , np.nan ) )
+        #print(np.nanmax(fluid_posy), np.nanmin(fluid_posy))
         #speed in x direction from these particles
-        speed.append( np.where( abs(position[t, fluid_id[0], 0] ) < slab/2, velocity[t, fluid_id[0], 0], np.nan ))
-        
-    fluid_pos = np.nanmean( np.array(fluid_pos), axis = 0 )
+        speed.append( np.where( abs(position[t, fluid_id[0], 0] ) < slab/2, velocity[t, fluid_id[0], 0], np.nan )) 
+    fluid_posy = np.nanmean( np.array(fluid_posy), axis = 0 )
     speed = np.nanmean( np.array(speed), axis = 0 ) 
 
-    fluid_pos = fluid_pos[ np.where(np.isnan(fluid_pos) == False)]
+    fluid_posy = fluid_posy[ np.where(np.isnan(fluid_posy) == False)]
     speed = speed[ np.where(np.isnan(speed) == False)]
-    print('fluid in pore position y', fluid_pos.shape)
-    print('speed x', speed.shape)
+    print('posx pos', fluid_posy)
+    print('speed ', speed)
 
     #create slabs in y direction to average velocity
-    dy =  np.arange(np.amin(fluid_pos), np.amax(fluid_pos)-0.5, 0.5)
-    print(dy) 
-
+    dy =  np.arange(np.amin(fluid_posy) + 0.5, np.amax(fluid_posy), 0.5 ) 
+    print('dy', dy) 
+    
     velocity = []
-    for i in range(len(dy)) :
-        pos_dy = np.array( np.where( (fluid_pos  >  dy[i]) & (fluid_pos < dy[i]+0.5) ))
-        #print('pos_id',pos_y[pos_dy])
-        #print('speed x',speed_x[pos_dy])
-        velocity.append( np.mean(speed[pos_dy]) )
+    for x in range(len(dy)) :
+        pos_dy = np.array( np.where( (fluid_posy  >  dy[x]-0.5) & (fluid_posy < dy[x]) ))
+        #print(pos_dx)
+        #print(fluid_posy[pos_dx])
+        velocity.append( np.mean(speed[pos_dy] ))
     print(velocity)
-        
+
+    #visc15, cov15 = curve_fit(NS, data15[:,0], data15[:,1])
+    #visc25, cov25 = curve_fit(NS, data25[:,0], data25[:,1])
+
 
     plt.rc('font', **{ 'family':'serif', 'serif' : ['ptm'], 'size' :12})
+    species = np.array(species)
+    species = np.array(species)
     plt.rc('text', usetex=True)
     plt.rc('text.latex' , preamble=(
         r'\usepackage{textcomp}',
@@ -130,14 +145,14 @@ def main():
     plt.rc('savefig', bbox='tight',pad_inches=0.05,dpi=600,transparent=False)
     plt.rc('ps',usedistiller='xpdf')
      
-        
-    plt.plot(dy, velocity, '-',color='royalblue', linewidth=1.2,fillstyle='full', label = 'D15')
-    #plt.plot(grids_adr + sym, rdf1(grids_adr) , '-',color='royalblue',linewidth=1.2,fillstyle='full', label = 'D10')
-    #plt.plot(grids_adr + sym, rdf2(grids_adr) , '-',color='mediumblue',linewidth=1.2,fillstyle='full', label = 'D15')
-    #plt.plot(grids_adr + sym, rdf3(grids_adr) , '-',color='midnightblue',linewidth=1.2,fillstyle='full', label = 'D20')
+    dy = np.array(data15[:,0])-0.25
+    plt.plot(dy, data15[:,1], '-',color='deepskyblue', linewidth=1.2,fillstyle='full', label = 'D=15')
+    plt.plot(dy-0.25, NS(dy, visc15) ,  '-',color='red',linewidth=0.8,linestyle='dashed', label = 'NS fit viscosity = %5.3f' %visc15)
+    #plt.plot( dy, velocity_mean[2,:], '-',color='mediumblue',linewidth=1.2,fillstyle='full', label = 'x=90')
+    #plt.plot(dy, velocity_mean[3,:] , '-',color='midnightblue',linewidth=1.2,fillstyle='full', label = 'x=110')
     plt.legend()
 
-    plt.xlabel('y')
+    plt.xlabel('x')
     plt.ylabel('velocity x') 
     #print(np.max(time0)-0.8, np.max(time1)-1,np.max(time2)-1.2)
     source = 10
@@ -148,9 +163,10 @@ def main():
  
 
     plt.axvspan(-pore_yz/2,pore_yz/2, alpha=0.5, color='grey')
+
    # plt.axvspan(0+sym, source+sym, alpha=0.5, color='gold')
 
-    plt.savefig('velocity.pdf')
+    plt.savefig('veltot15.pdf')
    
 
 

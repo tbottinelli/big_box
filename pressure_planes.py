@@ -42,7 +42,7 @@ def pressure_par(data_tot):
 
     left_data = data_tot[0]
     right_data = data_tot[1]
-    surface_area = data_tot[2]
+    areas = data_tot[2]
     box_length = data_tot[3]
     sigmas = data_tot[4]
     epsilon = data_tot[5]
@@ -56,7 +56,7 @@ def pressure_par(data_tot):
     for i in range(dimension):
         v2_tot[i] += np.sum(np.power(left_data[:, dimension + i],2))
         v2_tot[i] += np.sum(np.power(right_data[:, dimension + i],2))
-    v2_tot /= (2*slab_x*surface_area)
+    v2_tot /= (2*slab_x*areas)
     pressure_ += v2_tot
     #print('pressure before loop', pressure_)
 
@@ -108,7 +108,7 @@ def pressure_par(data_tot):
     #print('r_hat shape',r_hat[~np.isnan(r_hat)],r_hat.shape)
     r6 = np.array(( dist/sigma )**(-6))
     #print('dist sigma', r6[~np.isnan(r6)])
-    pressure = (( (2 * r6**2) - r6 ) * 24 * epsilon / dist) * r_hat / surface_area
+    pressure = (( (2.0 * r6**2) - r6 ) * 24 * epsilon / dist) * r_hat / areas
     #print('p shape',pressure[~np.isnan(pressure)])
     p = np.array([ np.nansum(pressure[i, :, :]) for i in range(3) ])
     #print('p', p, p.shape)
@@ -128,41 +128,40 @@ def main():
     parser.add_argument('input', metavar = 'INPUT')
     args = parser.parse_args()
 
-    H5 = h5py.File(args.input, 'r')
-    #pressure = H5['observables/pressure/value']
-    #print("pressure=", np.mean(pressure[:]))
-    Hpos = H5['particles/all/position']
-    positions = np.array(Hpos['value'])
+    H5 = h5py.File(args.input)
 
-    every = 1
-    number_times = positions.shape[0] // every
-    
     box_length = np.diagonal(H5['particles/all/box/edges'])
     surface_area = box_length[1] * box_length[2]
     sigmas = [1,0.95,0.9] #ff/fp/pp
     epsilon = [1,1,0]
-    cut = math.pow(2,1/6)
-    cutoff = [2.5,cut,cut]
+    cutoff = [2.5, 2.5,2.5]
     source_len = 10
-    slab_len = 0.4*box_length[0] 
+    slab_len = 0.4*box_length[0]
     sym = -box_length[0]/2
-    pore_section = 25*25
+    dx = 2.5
+    pore_area = (15-sigmas[1])**2
 
-    positions = np.array(Hpos['value'])[::every,::every,:]
+    Hpos = H5['particles/all/position']
+    positions = np.array(Hpos['value'])
+
+    every = 2
+    number_times = positions.shape[0] // every
+
+    positions = np.array(Hpos['value'])[::every,:,:]
     Hvel = H5['particles/all/velocity']
-    velocities = np.array(Hvel['value'])[::every,::every,:]
+    velocities = np.array(Hvel['value'])[::every,:,:]
     Hspecies = H5['particles/all/species']
-    species = np.array(Hspecies['value'])[::every,::every]
+    species = np.array(Hspecies['value'])[::every,:]
     Himages = H5['particles/all/image']
-    images = np.array(Himages['value'])[::every,::every,:]
+    images = np.array(Himages['value'])[::every,:,:]
 
     # bring particles back in box        
     for k in range(3):
         positions[:,:,k] -= box_length[k] * images[:,:,k]
-    
+    print(np.amin(positions[0,:,:]))
     number_particles = positions.shape[1]
     dimensions = positions.shape[2]
-    #print('dim', dimensions)
+    print('dim', dimensions)
 
     complete_data = np.zeros([positions.shape[0],positions.shape[1],dimensions*2+2])
     complete_data[:,:,:dimensions] = positions
@@ -174,20 +173,16 @@ def main():
 
     #print(species.shape)
     time = []
-    x_pos1 = np.arange(sym + 2.5, -slab_len/2, 2.5)
-    x_pos2 = np.arange(-slab_len/2, slab_len/2, 0.5)
-    x_pos3 = np.arange(slab_len/2, box_length[0] + sym , 2.5)
-    x_pos = np.concatenate( (x_pos1 , x_pos2, x_pos3), axis = None )
+    x_pos = np.arange(sym + dx, box_length[0] + sym , dx)
+    #x_pos = np.concatenate( (x_pos1 , x_pos2, x_pos3), axis = None )
     print(x_pos.shape, "*", x_pos)
     number_slabs = len(x_pos)
     print('%i number of slabs.\n%i number of timesteps.'%(number_slabs,number_times))
     
-    areas = len(x_pos1)*[ surface_area ]
-    areas += 1*[(surface_area + pore_section)/2] 
-    areas += (len(x_pos2)-2)*[pore_section]
-    areas += 1*[(surface_area + pore_section)/2] 
-    areas += len(x_pos3)*[ surface_area ]
-    #print(areas)
+    areas = int((box_length[0]-slab_len)/(2*dx) )*[surface_area]
+    areas += int(slab_len/dx)*[pore_area]
+    areas +=  int((box_length[0]-slab_len)/(2*dx) )*[surface_area]
+    print(areas, len(areas))
 
     final_results = np.zeros([number_slabs, 1 + 5 * dimensions])
     print('final_result shape', final_results.shape)
@@ -197,10 +192,10 @@ def main():
 
         p_inputs = []
         for i in range(number_slabs):
-            left_data = np.array( complete_data[t,np.logical_and(complete_data[t,:,0] > x_pos[i] - 2.5, complete_data[t,:,0] < x_pos[i]) ] )
-            right_data = np.array( complete_data[t,np.logical_and(complete_data[t,:,0] < x_pos[i] + 2.5, complete_data[t,:,0] > x_pos[i]) ] )
-            print('left data', left_data.shape)
-            print('len right data', right_data.shape)
+            left_data = np.array( complete_data[t,np.logical_and(complete_data[t,:,0] > x_pos[i] - dx, complete_data[t,:,0] < x_pos[i]) ] )
+            right_data = np.array( complete_data[t,np.logical_and(complete_data[t,:,0] < x_pos[i] + dx, complete_data[t,:,0] > x_pos[i]) ] )
+           # print('left data', left_data[:,-2])
+           # print('len right data', right_data[:,-2])
 
             p_inputs.append([left_data, right_data, areas[i], box_length, sigmas, epsilon, cutoff])
        # print('press_input', len(p_inputs))print('pot pf',potential_pf)
@@ -217,7 +212,7 @@ def main():
 
     final_results[:,1:] /= number_times
     banner_file = '#x_pos #P_tot_x #P_tot_y #P_tot_z #P_v2_x #P_v2_y #P_v2_z #P_obs_par_x #P_obs_par_y #P_obs_par_z #P_par_par_x #P_par_par_y #P_par_par_z #P_par_v2_x #P_par_v2_y #P_par_v2_z '
-    np.savetxt("tst.dat", final_results, header = banner_file, comments = '')
+    #np.savetxt("tst15cst.dat", final_results, header = banner_file, comments = '')
 
 if __name__ == '__main__':
     main()

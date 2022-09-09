@@ -40,7 +40,7 @@ def main():
     parser.add_argument('--no-plot', action='store_true', help='do not produce plots, but do the analysis')
     parser.add_argument('--group', help='particle group (default: %(default)s)', default='all')
     parser.add_argument('input1', metavar='INPUT', help='H5MD input file with data for state variables')
-   # parser.add_argument('input2', metavar='INPUT', help='H5MD input file with data for state variables')
+    #parser.add_argument('input2', metavar='INPUT', help='H5MD input file with data for state variables')
    # parser.add_argument('input3', metavar='INPUT', help='H5MD input file with data for state variables')
    # parser.add_argument('input4', metavar='INPUT', help='H5MD input file with data for state variables')
    # parser.add_argument('input5', metavar='INPUT', help='H5MD input file with data for state variables')
@@ -49,16 +49,19 @@ def main():
     args = parser.parse_args()
 
     # open and read data file
-    H5 = [ h5py.File(args.input1, 'r')] # , h5py.File(args.input2, 'r'), h5py.File(args.input3, 'r'), h5py.File(args.input4, 'r')] # , h5py.File(args.input5, 'r') ]
+    H5 = [ h5py.File(args.input1, 'r')] # , h5py.File(args.input2, 'r') ] # h5py.File(args.input3, 'r'), h5py.File(args.input4, 'r')] # , h5py.File(args.input5, 'r') ]
     p_num = []
     for j in range(len(H5)):
         H5obs = H5[j]['observables']
         p_num.append([ H5obs['region{0}/particle_number/value'.format(i)] for i in range(0,80)] )
 
+    p_num = np.array(p_num)
+    print(p_num.shape)
+
     box_length = np.diagonal(H5[0]['particles/all/box/edges'])
     slab_len = 0.4*box_length[0]
     source = 10
-    pore_len = 15
+    pore_len = np.array( [15,25] )
     sigma_fp = 0.95
     sym = - box_length[0]//2
 
@@ -80,35 +83,38 @@ def main():
     pore_num = int( xgrid.shape[0] - 2*rest_num)
     print(rest_num,  pore_num)
     #create array of volumes
-    vol = [box_length[1]*box_length[2]*dx, ((pore_len - 2*sigma_fp)**2)*dx ]
-    volume = rest_num * [vol[0]]
-    volume += pore_num * [vol[1]]
-    volume += rest_num * [vol[0]]
-    volume = np.array(volume)
+    vol = np.array([ [box_length[1]*box_length[2]*dx, ((pore_len[i])**2)*dx ] for i in range(len(pore_len)) ])
+    print(vol, vol.shape)
+    volume1 = rest_num * [vol[0,0]]
+    volume1 += pore_num * [vol[0,1]]
+    volume1 += rest_num * [vol[0,0]]
+    volume2 = rest_num * [vol[1,0]]
+    volume2 += pore_num * [vol[1,1]]
+    volume2 += rest_num * [vol[1,0]]
+    volume = np.array([[volume1], [volume2]]).reshape(len(pore_len),p_num.shape[1])
     print(volume, volume.shape)
     #calculate density
-    density = p_num / volume[None, :, None] 
+    density = p_num / volume[:, :, None] 
     print(density)
 
     density_mean = np.mean(density, axis=2)
     print(density_mean.shape, density_mean) #should be 1x40 in the end
 
     # select data for plotting the potential energy as function of time
-    y0 = interp1d(xgrid, density_mean[0,:], bounds_error=False, kind='quadratic')
-   # y1 = interp1d(xgrid, density_mean[1,:], bounds_error=False, kind='quadratic')
+    #y0 = interp1d(xgrid, density_mean[0,:], bounds_error=False, kind='quadratic')
+    y1 = interp1d(xgrid, density_mean[1,:], bounds_error=False, kind='quadratic')
    # y2 = interp1d(xgrid, density_mean[2,:], bounds_error=False, kind='quadratic')
   #  y3 = interp1d(xgrid, density_mean[3,:], bounds_error=False, kind='quadratic')
    # y4 = interp1d(xgrid, density_mean[4,:], bounds_error=False, kind='quadratic')
 
-    grids_at = np.linspace(0, 70, num = 55, endpoint = False )
     grids_adr = np.linspace(-box_length[0]/2,box_length[0]/2, num =1000 , endpoint=False)
 
 
     # generate plot
     if not args.no_plot:
         # plot potential energy versus time
-        plt.plot(grids_adr, y0(grids_adr), '-',  color = 'deepskyblue' , label='L15')
-       # plt.plot(grids_adr+sym, y1(grids_adr),'-', color = 'royalblue' , label='L20')
+   #     plt.plot(grids_adr, y0(grids_adr), '-',  color = 'deepskyblue' , label='D15')
+        plt.plot(grids_adr, y1(grids_adr),'-', color = 'royalblue' , label='D25')
        # plt.plot(grids_adr+sym, y2(grids_adr),'-', color = 'mediumblue' , label='L25')
        # plt.plot(grids_adr+sym, y3(grids_adr),'-', color = 'midnightblue' , label='L30')
     #    plt.plot(grids_adr+sym, y4(grids_adr),'-', color = 'black' , label='L35')
@@ -124,7 +130,7 @@ def main():
         plt.axvspan(-slab_len/2,slab_len/2, alpha=0.5, color='grey')
         plt.axvspan(+sym, source+sym, alpha=0.5, color='gold')
 
-        plt.savefig('density.pdf')
+        plt.savefig('den25long.pdf')
    
 
 
